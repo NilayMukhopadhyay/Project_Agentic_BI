@@ -1,3 +1,9 @@
+import os
+from dotenv import load_dotenv
+
+# Activate the hidden .env file so Python can read it
+load_dotenv()
+
 import streamlit as st
 import requests
 import json
@@ -10,12 +16,14 @@ from plotly.subplots import make_subplots
 st.title("Nilay's BI Analyst AI Assistant")
 
 # --- PRODUCTION WEBHOOK URL ---
-N8N_WEBHOOK_URL = "https://unconcluded-leoma-printanier.ngrok-free.dev/webhook/ccef9620-04b6-4130-972b-aaeec4aee1c3"
+# Fetch the webhook URL from the .env file, or use a local placeholder for public display
+N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "http://localhost:5678/webhook/your-webhook-id")
 
 # Load the local Excel dataset
 @st.cache_data
 def load_data():
-    df = pd.read_excel("../Agentic_BI_Raw_Data.xlsx")
+    # Notice there is no "../" here anymore, because the file is in the exact same folder!
+    df = pd.read_excel("Agentic_BI_Raw_Data.xlsx")
     df.columns = df.columns.str.strip()
     return df
 
@@ -335,3 +343,4 @@ if prompt := st.chat_input("Ask for a chart, table, or summary..."):
                 render_message(new_msg, len(st.session_state.messages) - 1)
                 
             st.rerun() # Refresh to update the Sidebar UI counter
+        
