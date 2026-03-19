@@ -8,7 +8,7 @@ An advanced BI Agent that translates natural language queries into interactive P
 ## 🏗️ The Architecture
 Unlike standard LLM wrappers, this project utilizes **Decoupled Logic Routing**:
 * **Orchestrator:** n8n (Self-hosted via Docker) acts as the logic gate.
-* **Engine:** Google Gemini 1.5 Flash (Generates Plotly JSON blueprints).
+* **Engine:** Google Gemini 2.5 Flash (Generates Plotly JSON blueprints).
 * **Data Processor:** Local Python/Pandas (Handles all math/filtering to ensure 100% accuracy and data privacy).
 * **Frontend:** Streamlit.
 
