@@ -15,7 +15,7 @@ Unlike standard LLM wrappers, this project utilizes **Decoupled Logic Routing**:
 
 
 ## 🌟 Key Features
-* **Dual-Axis Plotly Visuals:** Supports complex clustered columns with dynamic average overlays.
+* **Interactive Visual Exploration:** Features native Plotly visuals with built-in UI controls for on-the-fly axis sorting, category-specific color highlighting, and dynamic average trendlines for instant benchmarking.
 * **Free-Tier Guardrails:** Built-in 12-second traffic-light cooldown to manage API rate limits.
 * **Context-Aware:** Conversational memory for follow-up data exploration.
 
