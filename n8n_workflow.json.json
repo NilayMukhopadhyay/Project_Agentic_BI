@@ -1,0 +1,101 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ccef9620-04b6-4130-972b-aaeec4aee1c3",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -352,
+        -128
+      ],
+      "id": "efb47706-53ff-48d0-b1b0-28d98df13e6a",
+      "name": "Webhook",
+      "webhookId": "ccef9620-04b6-4130-972b-aaeec4aee1c3"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.chatInput }}",
+        "options": {
+          "systemMessage": "You are an expert BI Analyst AI Agent. Your role is to translate user requests into a strict JSON blueprint so a Python backend can calculate and display the data.\nThe local database has these exact columns: Transaction_ID, Order_Date, Sales_Person, Region, Country, Product, Quantity, Unit_Price, Discount_Price, Sales, Profit.\n\nCRITICAL RULES:\n1. Output ONLY a valid JSON object. Do not include markdown formatting like ```json.\n2. The JSON MUST follow this exact schema, adjusting \"response_type\" based on what the user asked for:\n\n{\n  \"response_type\": \"summary\", \n  \"summary_text\": \"Only use this if response_type is 'summary'. Write your answer here.\",\n  \"x_column\": \"ExactColumnName\",\n  \"y_column\": \"ExactColumnName\",\n  \"chart_type\": \"bar\",\n  \"filter_column\": null,\n  \"filter_value\": null\n}\n\nROUTING LOGIC:\n- If the user asks for a chart or graph, set \"response_type\" to \"chart\".\n- If the user asks for a table or grid, set \"response_type\" to \"table\".\n- If the user asks a general question, or specifically says \"not a chart\", set \"response_type\" to \"summary\" and put your conversational answer in \"summary_text\".\n\n- If the user asks for a horizontal bar chart, set \"chart_type\" to \"bar\".\n- If the user asks for a vertical column chart, or just \"chart\", set \"chart_type\" to \"column\"."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -16,
+        -128
+      ],
+      "id": "0a95c85d-ccf7-4fa2-9914-18b83a64b142",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        80
+      ],
+      "id": "bc8d0fc1-b931-4ee9-be0e-d8d8dc9d7bef",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "fTUuGKTnsrxgumUT",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "cee88036-da43-4eff-89e5-ca0e52b29a49",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ef97c92d346ef4930d2b97bc327e63f22a190503553a8e8aaa84426e5c05d39d"
+  },
+  "id": "pnjylVrszN4TdAmt",
+  "tags": []
+}
