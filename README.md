@@ -1,5 +1,7 @@
 # PROJECT_AGENTIC_BI 🤖📊
 
+**Read the full case study on my Notion Portfolio:** [Link to be added here](https://www.notion.so/Project-Summary-2feb9932e17f80aca95eeccfc8e810a7)
+
 ### "Text-to-Insights" Agentic Workflow
 An advanced BI Agent that translates natural language queries into interactive Plotly visualizations using a decoupled logic architecture.
 
