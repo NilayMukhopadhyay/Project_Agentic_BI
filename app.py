@@ -16,13 +16,11 @@ from plotly.subplots import make_subplots
 st.title("Nilay's BI Analyst AI Assistant")
 
 # --- PRODUCTION WEBHOOK URL ---
-# Fetch the webhook URL from the .env file, or use a local placeholder for public display
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "http://localhost:5678/webhook/your-webhook-id")
 
 # Load the local Excel dataset
 @st.cache_data
 def load_data():
-    # Notice there is no "../" here anymore, because the file is in the exact same folder!
     df = pd.read_excel("Agentic_BI_Raw_Data.xlsx")
     df.columns = df.columns.str.strip()
     return df
@@ -48,27 +46,23 @@ with st.sidebar:
     
     st.metric(label="Requests Sent (This Session)", value=st.session_state.request_count)
     
-    # Calculate cooldown to avoid the strict Requests Per Minute (RPM) limit
     elapsed = time.time() - st.session_state.last_request_time
     if st.session_state.last_request_time == 0 or elapsed > 12:
         st.success("🟢 API Status: Ready")
     else:
-        # Recommends a 12-second pause (supports 5 RPM limit for Gemini 2.5 Pro)
         cooldown_left = 12 - int(elapsed)
         st.warning(f"🟡 API Cooldown: Please wait {cooldown_left}s to avoid rate limits.")
         
     st.markdown("---")
     st.markdown("""
     **Gemini Free Tier Limits (Mar 2026):**
-    - **2.5 Pro:** 5 Req / Min | 100 Req / Day
-    - **2.5 Flash:** 10 Req / Min | 250 Req / Day
+    - **2.5 Flash:** 15 Req / Min | 1500 Req / Day
     
-    *Daily limits reset at exactly 1:30 PM IST.*
+    *Note: The AI Agent utilizes multi-step reasoning, meaning one prompt may consume multiple API requests.*
     """)
 
 # --- 1. UI RENDERING ENGINE (DRY Code) ---
 def render_message(msg, index):
-    """Handles rendering text, tables, and interactive charts dynamically."""
     if msg["type"] == "text":
         st.write(msg["content"])
         
@@ -78,22 +72,19 @@ def render_message(msg, index):
         st.download_button(label="📥 Download CSV", data=csv_data, file_name=f"export_{index}.csv", mime="text/csv", key=f"dl_csv_{index}")
         
     elif msg["type"] == "chart":
-        # --- BACKWARDS COMPATIBILITY ---
         if "data" not in msg:
             st.plotly_chart(msg["content"], use_container_width=True, key=f"old_chart_{index}")
             if "timer" in msg:
                 st.caption(f"⏱️ Processed in {msg['timer']:.2f} seconds.")
             return
-        # ----------------------------------------
         
         df_chart = msg["data"].copy()
         x_col = msg["x_col"]
-        y_cols = msg.get("y_cols", [msg.get("y_col")]) # Upgraded to support multiple y columns
-        y_val = y_cols[0] # Primary metric
+        y_cols = msg.get("y_cols", [msg.get("y_col")]) 
+        y_val = y_cols[0] 
         c_type = msg["chart_type"]
         title = msg["title"]
         
-        # Native Streamlit Dropdowns for Sorting, Base Color, and Average Line (Now 5 Columns!)
         cols = st.columns(5)
         with cols[0]:
             sort_axis = st.selectbox("Sort Axis:", [x_col] + y_cols, key=f"sort_axis_{index}")
@@ -102,24 +93,22 @@ def render_message(msg, index):
         with cols[2]:
             base_color = st.color_picker("Base Color:", value="#1f77b4", key=f"base_color_{index}")
         with cols[3]:
-            st.write("") # Spacing to align perfectly with the dropdowns
+            st.write("") 
             st.write("")
             show_avg = st.checkbox("Show Average", key=f"show_avg_{index}")
         with cols[4]:
             avg_color = st.color_picker("Avg Line Color:", value="#e74c3c", key=f"avg_color_{index}")
         
-        # Apply the chosen sorting parameters instantly
         if sort_order != "None":
             asc = True if sort_order == "Ascending" else False
             df_chart = df_chart.sort_values(by=sort_axis, ascending=asc)
 
-        # Smart Coloring Logic (Base Color vs Highlights)
         category_colors = {}
         unique_categories = df_chart[x_col].unique()
         highlight_cats = []
         
         with st.expander("🎨 Highlight / Customize Colors"):
-            if c_type == "pie":
+            if c_type in ["pie", "doughnut"]:
                 st.write("Customize individual slice colors:")
                 default_palette = px.colors.qualitative.Plotly * (len(unique_categories) // len(px.colors.qualitative.Plotly) + 1)
                 picker_cols = st.columns(4)
@@ -129,7 +118,7 @@ def render_message(msg, index):
                     with picker_cols[i % 4]:
                         category_colors[cat] = st.color_picker(cat_str, value=default_hex, key=f"color_{index}_{cat_str}")
             else:
-                st.write("Highlight specific bars (overrides Base Color):")
+                st.write("Highlight specific data categories (overrides Base Color):")
                 highlight_cats = st.multiselect("Select categories to highlight:", unique_categories, key=f"hl_cats_{index}")
                 if highlight_cats:
                     picker_cols = st.columns(4)
@@ -138,27 +127,20 @@ def render_message(msg, index):
                         with picker_cols[i % 4]:
                             category_colors[cat] = st.color_picker(cat_str, value="#ff7f0e", key=f"hl_color_{index}_{cat_str}")
             
-        # Render the correct chart orientation and colors!
         cat_array = df_chart[x_col].tolist()
 
-        # ADVANCED: Mixed Dual-Axis Chart (Bar + Line Overlay)
+        # ADVANCED MULTI-AXIS CHARTS
         if c_type == "mixed" and len(y_cols) >= 2:
             y1, y2 = y_cols[0], y_cols[1]
             fig = make_subplots(specs=[[{"secondary_y": True}]])
-            
             fig.add_trace(go.Bar(x=df_chart[x_col], y=df_chart[y1], name=y1, marker_color=base_color), secondary_y=False)
             fig.add_trace(go.Scatter(x=df_chart[x_col], y=df_chart[y2], name=y2, mode='lines+markers', line=dict(color='#ff7f0e', width=3)), secondary_y=True)
-            
             fig.update_layout(title=title, barmode='group', showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
             fig.update_xaxes(type='category', categoryorder='array', categoryarray=cat_array)
-            fig.update_yaxes(title_text=y1, secondary_y=False)
-            fig.update_yaxes(title_text=y2, secondary_y=True)
-            
             if show_avg:
                 avg_val = df_chart[y1].mean()
                 fig.add_hline(y=avg_val, line_dash="dash", line_color=avg_color, annotation_text=f"Avg {y1}: {avg_val:,.1f}", secondary_y=False)
                 
-        # ADVANCED: Standard Clustered Chart
         elif len(y_cols) >= 2:
             fig = px.bar(df_chart, x=x_col, y=y_cols, title=title, barmode='group', color_discrete_sequence=[base_color, '#ff7f0e', '#2ca02c'])
             fig.update_xaxes(type='category', categoryorder='array', categoryarray=cat_array)
@@ -166,33 +148,51 @@ def render_message(msg, index):
                 avg_val = df_chart[y_cols[0]].mean()
                 fig.add_hline(y=avg_val, line_dash="dash", line_color=avg_color, annotation_text=f"Avg {y_cols[0]}: {avg_val:,.1f}")
 
-        # STANDARD CHARTS (Single Metric)
+        # SINGLE METRIC CHARTS
         elif c_type == "pie":
             fig = px.pie(df_chart, names=x_col, values=y_val, title=title, color=x_col, color_discrete_map=category_colors)
             fig.update_traces(textposition='inside', textinfo='percent+label+value')
+            
+        elif c_type == "doughnut":
+            fig = px.pie(df_chart, names=x_col, values=y_val, title=title, color=x_col, color_discrete_map=category_colors, hole=0.4)
+            fig.update_traces(textposition='inside', textinfo='percent+label+value')
+            
+        elif c_type == "boxplot":
+            if highlight_cats:
+                full_color_map = {cat: category_colors.get(cat, base_color) for cat in unique_categories}
+                fig = px.box(df_chart, x=x_col, y=y_val, title=title, color=x_col, color_discrete_map=full_color_map)
+            else:
+                fig = px.box(df_chart, x=x_col, y=y_val, title=title, color_discrete_sequence=[base_color])
+            fig.update_xaxes(type='category', categoryorder='array', categoryarray=cat_array)
+            fig.update_layout(showlegend=False)
+            if show_avg:
+                avg_val = df_chart[y_val].mean()
+                fig.add_hline(y=avg_val, line_dash="dash", line_color=avg_color, annotation_text=f"Avg: {avg_val:,.1f}", annotation_position="top right")
+                
+        elif c_type == "heatmap":
+            fig = px.density_heatmap(df_chart, x=x_col, y=y_val, title=title, color_continuous_scale=["#ffffff", base_color])
+            fig.update_xaxes(type='category', categoryorder='array', categoryarray=cat_array)
+            
         elif c_type == "bar": 
             if highlight_cats:
                 full_color_map = {cat: category_colors.get(cat, base_color) for cat in unique_categories}
                 fig = px.bar(df_chart, x=y_val, y=x_col, orientation='h', title=title, text_auto=True, color=x_col, color_discrete_map=full_color_map)
             else:
                 fig = px.bar(df_chart, x=y_val, y=x_col, orientation='h', title=title, text_auto=True, color_discrete_sequence=[base_color])
-            
             fig.update_yaxes(type='category', categoryorder='array', categoryarray=cat_array[::-1]) 
             fig.update_layout(showlegend=False)
-            
             if show_avg:
                 avg_val = df_chart[y_val].mean()
                 fig.add_vline(x=avg_val, line_dash="dash", line_color=avg_color, annotation_text=f"Avg: {avg_val:,.1f}", annotation_position="bottom right")
+                
         else: 
             if highlight_cats:
                 full_color_map = {cat: category_colors.get(cat, base_color) for cat in unique_categories}
                 fig = px.bar(df_chart, x=x_col, y=y_val, title=title, text_auto=True, color=x_col, color_discrete_map=full_color_map)
             else:
                 fig = px.bar(df_chart, x=x_col, y=y_val, title=title, text_auto=True, color_discrete_sequence=[base_color])
-            
             fig.update_xaxes(type='category', categoryorder='array', categoryarray=cat_array)
             fig.update_layout(showlegend=False)
-            
             if show_avg:
                 avg_val = df_chart[y_val].mean()
                 fig.add_hline(y=avg_val, line_dash="dash", line_color=avg_color, annotation_text=f"Avg: {avg_val:,.1f}", annotation_position="top right")
@@ -210,7 +210,6 @@ for i, msg in enumerate(st.session_state.messages):
 # --- 3. HANDLE NEW CHAT INPUT ---
 if prompt := st.chat_input("Ask for a chart, table, or summary..."):
     
-    # Check if the user is typing too fast (prevents the 429 error crash)
     elapsed = time.time() - st.session_state.last_request_time
     if st.session_state.last_request_time != 0 and elapsed < 12:
         st.warning(f"⚠️ **Rate Limit Warning:** Please wait {12 - int(elapsed)} seconds before sending your next request to protect your free API quota.")
@@ -225,7 +224,6 @@ if prompt := st.chat_input("Ask for a chart, table, or summary..."):
         with st.spinner("Processing request... (Please wait)"):
             start_time = time.time()
             
-            # --- UPDATE API TRACKERS IMMEDIATELY ---
             st.session_state.request_count += 1
             st.session_state.last_request_time = time.time()
             
@@ -257,14 +255,14 @@ if prompt := st.chat_input("Ask for a chart, table, or summary..."):
                         else:
                             x_col = blueprint.get("x_column", "").strip()
                             
-                            # MULTI-METRIC SUPPORT
                             y_raw = blueprint.get("y_column", "")
                             if isinstance(y_raw, list):
                                 y_cols = [str(y).strip() for y in y_raw]
                             else:
                                 y_cols = [y.strip() for y in str(y_raw).split(",")] if "," in str(y_raw) else [str(y_raw).strip()]
                                 
-                            chart_type = blueprint.get("chart_type", "column").lower()
+                            raw_c_type = blueprint.get("chart_type")
+                            chart_type = str(raw_c_type).lower() if raw_c_type else "column"
                             
                             if len(y_cols) > 1 and ("mixed" in prompt.lower() or "line" in prompt.lower()):
                                 chart_type = "mixed"
@@ -276,7 +274,6 @@ if prompt := st.chat_input("Ask for a chart, table, or summary..."):
                             if filter_col and filter_val and filter_col in df.columns:
                                 filtered_df = filtered_df[filtered_df[filter_col].astype(str).str.contains(str(filter_val), case=False, na=False, regex=False)]
                                 
-                            # SMART DATE HANDLING & DYNAMIC RENAMING
                             if x_col in filtered_df.columns:
                                 if filtered_df[x_col].dtype == 'object':
                                     try:
@@ -299,16 +296,22 @@ if prompt := st.chat_input("Ask for a chart, table, or summary..."):
                                         
                             agg_df = filtered_df.groupby(x_col)[y_cols].sum().reset_index()
                             
+                            # NEW: Smart Routing for Raw vs Aggregated Data
+                            if chart_type in ["boxplot", "heatmap"]:
+                                chart_data = filtered_df  # Feed raw data for distributions
+                            else:
+                                chart_data = agg_df       # Feed summarized data for standard charts
+                            
                             if response_type == "table":
                                 new_msg = {"role": "assistant", "type": "dataframe", "content": agg_df, "timer": duration}
                                 
                             elif response_type == "chart":
                                 title_y = y_cols[0] if len(y_cols) == 1 else f"{y_cols[0]} & {y_cols[1]}"
-                                title = f"Total {title_y} by {x_col}"
+                                title = f"Total {title_y} by {x_col}" if chart_type not in ["boxplot", "heatmap"] else f"{title_y} Distribution by {x_col}"
                                 new_msg = {
                                     "role": "assistant", 
                                     "type": "chart", 
-                                    "data": agg_df,
+                                    "data": chart_data,
                                     "x_col": x_col,
                                     "y_cols": y_cols,
                                     "chart_type": chart_type, 
@@ -342,5 +345,4 @@ if prompt := st.chat_input("Ask for a chart, table, or summary..."):
                 st.session_state.messages.append(new_msg)
                 render_message(new_msg, len(st.session_state.messages) - 1)
                 
-            st.rerun() # Refresh to update the Sidebar UI counter
-        
+            st.rerun()
